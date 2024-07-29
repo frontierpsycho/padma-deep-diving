@@ -37,6 +37,29 @@ module NetrunnerProbabilityUtils
     end
   end
 
+  class RoundResult
+    attr_reader :probabilities
+
+    def initialize(o)
+      @probabilities = o.reduce(Hash.new(0.0)) do |acc, outcome|
+        acc[outcome[0]] += outcome[1]
+        acc
+      end
+    end
+
+    # probability by agendas
+    def pba(number_of_agendas)
+      @probabilities[number_of_agendas]
+    end
+
+    def print
+      @probabilities.each do |agendas_stolen, total_probability|
+        puts "Chance to steal %d agendas:\t\t%0.2f%%" % [agendas_stolen, total_probability * 100.0]
+      end
+      puts "Total probability: %0.2f" % [@probabilities.values.reduce(:+) * 100]
+    end
+  end
+
   def self.khusyuk_outcomes(deck_state, cards)
     if deck_state.agendas_left == 0
       return [[0, 1.0]] # no agendas left, there's only one possible outcome, with 100% probability.

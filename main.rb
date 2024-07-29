@@ -60,5 +60,3 @@ module PadmaDeepDiving
     )
   )
 end
-
-# TODO: Result class (or better name), which has probabilities to hit 0, 1, 2, 3, 4 agendas.
