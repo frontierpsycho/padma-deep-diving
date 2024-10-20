@@ -58,6 +58,67 @@ module NetrunnerProbabilityUtils
     end
   end
 
+  class PartialResult
+    attr_reader :agendas_stolen, :probability
+
+    def initialize(agendas_stolen, probability)
+      @agendas_stolen = agendas_stolen
+      @probability = probability
+    end
+
+    def self.merge_to_hash(partial_results)
+      probabilities = Hash.new(0.0)
+      partial_results.each do |partial_result|
+        probabilities[partial_result.agendas_stolen] += partial_result.probability
+      end
+      probabilities
+    end
+
+    def to_s
+      format("Prob to steal %d agendas: %0.2f%%", @agendas_stolen, @probability * 100)
+    end
+  end
+
+  class Breach
+    def access(deck_state)
+      was_agenda_stolen_probability = deck_state.agendas_left.to_f / deck_state.cards_left
+
+      puts 'Was agenda stolen: %0.2f%%' % (was_agenda_stolen_probability * 100)
+
+      [
+        PartialResult.new(0, 1 - was_agenda_stolen_probability),
+        PartialResult.new(1, was_agenda_stolen_probability),
+      ]
+    end
+
+    def self.apply_series_of_breaches_recursive(deck_state, breaches, agendas_stolen = 0, probability = 1)
+      if breaches.empty?
+        return PartialResult.new(agendas_stolen, probability)
+      end
+
+      breach = breaches.shift
+
+      breach_result = breach.access(deck_state)
+
+      puts "Breach result: #{breach_result}"
+
+      breach_probabilities = breach_result.flat_map do |partial_result|
+        new_deck_state = deck_state.steal(partial_result.agendas_stolen)
+
+        puts "If #{partial_result.agendas_stolen} agendas are stolen, the new state is: #{new_deck_state}"
+
+        self.apply_series_of_breaches_recursive(
+          new_deck_state,
+          breaches,
+          agendas_stolen + partial_result.agendas_stolen,
+          probability * partial_result.probability
+        )
+      end
+
+      return breach_probabilities
+    end
+  end
+
   def self.khusyuk_outcomes(deck_state, cards)
     if deck_state.agendas_left == 0
       return [[0, 1.0]] # no agendas left, there's only one possible outcome, with 100% probability.

@@ -63,7 +63,18 @@ module NetrunnerProbabilityUtilsTest
       # o = NetrunnerProbabilityUtils.super_round_outcomes(DeckState.new(25, 5))
       # result = RoundResult.new(o)
     end
+
+    def test_apply_series_of_breaches
+      breach_probabilities = Breach.apply_series_of_breaches_recursive(
+        DeckState.new(24, 4),
+        [Breach.new, Breach.new]
+      )
+
+      # TODO blergh
+      final_probabilities = PartialResult.merge_to_hash(breach_probabilities)
+
+      assert_in_delta(final_probabilities[0], 0.69, 0.1)
+      assert_in_delta(final_probabilities[1], 0.31, 0.1)
+    end
   end
 end
-
-
