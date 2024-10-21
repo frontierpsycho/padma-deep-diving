@@ -119,6 +119,56 @@ module NetrunnerProbabilityUtils
     end
   end
 
+  class KhusyukBreach
+    attr_reader :khusyuk_number
+
+    def initialize(khusyuk_number)
+      @khusyuk_number = khusyuk_number
+    end
+
+    def access(deck_state)
+      if deck_state.agendas_left == 0
+        return [PartialResult.new(0, 1.0)] # no agendas left, there's only one possible outcome, with 100% probability.
+      end
+
+      range_upper_limit = [deck_state.agendas_left, 1].min
+      (0..range_upper_limit).map do |agendas_stolen|
+        PartialResult.new(
+          agendas_stolen,
+          # for the last entry, we want the probability to have agendas_stolen or more hits
+          if agendas_stolen == range_upper_limit
+            1 - hypg_cdf(agendas_stolen - 1, deck_state.agendas_left, @khusyuk_number, deck_state.cards_left)
+          else
+            hypg_pdf(agendas_stolen, deck_state.agendas_left, @khusyuk_number, deck_state.cards_left)
+          end
+        )
+      end
+    end
+  end
+
+  class DeepDiveBreach
+    def access(deck_state)
+      if deck_state.agendas_left == 0
+        return [PartialResult.new(0, 1.0)] # no agendas left, there's only one possible outcome, with 100% probability.
+      end
+
+      # TODO can't implement max properly
+      max = 2
+      range_upper_limit = [deck_state.agendas_left, max].min
+      (0..range_upper_limit).map do |agendas_stolen|
+        PartialResult.new(
+          agendas_stolen,
+          # for the last entry, we want the probability to have agendas_stolen or more hits
+          if agendas_stolen == range_upper_limit
+            1 - hypg_cdf(agendas_stolen - 1, deck_state.agendas_left, 8, deck_state.cards_left)
+          else
+            hypg_pdf(agendas_stolen, deck_state.agendas_left, 8, deck_state.cards_left)
+          end
+        )
+      end
+    end
+  end
+
   def self.khusyuk_outcomes(deck_state, cards)
     if deck_state.agendas_left == 0
       return [[0, 1.0]] # no agendas left, there's only one possible outcome, with 100% probability.

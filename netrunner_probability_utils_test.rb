@@ -40,11 +40,11 @@ module NetrunnerProbabilityUtilsTest
 
       # in these tests, the error margin is wider because it was hard to get it exactly, most likely because
       # of error propagation (there's more nested operations in some of them, eg 2 & 3)
-      assert_in_delta(result.pba(0), 0.01337, 0.1)
-      assert_in_delta(result.pba(1), 0.11823, 0.1)
-      assert_in_delta(result.pba(2), 0.36552, 0.1)
-      assert_in_delta(result.pba(3), 0.39487, 0.1)
-      assert_in_delta(result.pba(4), 0.08699, 0.1)
+      assert_in_delta(result.pba(0), 0.01337, 0.03)
+      assert_in_delta(result.pba(1), 0.11823, 0.03)
+      assert_in_delta(result.pba(2), 0.36552, 0.03)
+      assert_in_delta(result.pba(3), 0.39487, 0.03)
+      assert_in_delta(result.pba(4), 0.08699, 0.03)
 
       # test edge case with 1 agenda
       o = NetrunnerProbabilityUtils.super_round_outcomes(DeckState.new(24, 1))
@@ -70,11 +70,37 @@ module NetrunnerProbabilityUtilsTest
         [Breach.new, Breach.new]
       )
 
-      # TODO blergh
       final_probabilities = PartialResult.merge_to_hash(breach_probabilities)
 
-      assert_in_delta(final_probabilities[0], 0.69, 0.1)
-      assert_in_delta(final_probabilities[1], 0.31, 0.1)
+      assert_in_delta(final_probabilities[0], 0.69, 0.01)
+      assert_in_delta(final_probabilities[1], 0.31, 0.01)
+    end
+
+    def test_apply_series_of_breaches_single_khusyuk
+      breach_probabilities = Breach.apply_series_of_breaches_recursive(
+        DeckState.new(24, 4),
+        [KhusyukBreach.new(4)]
+      )
+
+      final_probabilities = PartialResult.merge_to_hash(breach_probabilities)
+
+      assert_in_delta(final_probabilities[0], 0.455, 0.01)
+      assert_in_delta(final_probabilities[1], 0.544, 0.01)
+    end
+
+    def test_apply_series_of_breaches_super_round
+      breach_probabilities = Breach.apply_series_of_breaches_recursive(
+        DeckState.new(24, 4),
+        [
+          KhusyukBreach.new(4),
+          DeepDiveBreach.new,
+        ]
+      )
+
+      final_probabilities = PartialResult.merge_to_hash(breach_probabilities)
+
+      assert_in_delta(final_probabilities[0], 0.455, 0.01)
+      assert_in_delta(final_probabilities[1], 0.544, 0.01)
     end
   end
 end
