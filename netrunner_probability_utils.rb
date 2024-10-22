@@ -59,16 +59,19 @@ module NetrunnerProbabilityUtils
   end
 
   class PartialResult
-    attr_reader :agendas_stolen, :probability
+    attr_reader :agendas_stolen, :probability, :clicks_spent
 
-    def initialize(agendas_stolen, probability)
+    def initialize(agendas_stolen, probability, clicks_spent = 1)
       @agendas_stolen = agendas_stolen
       @probability = probability
+      @clicks_spent = clicks_spent
     end
 
     def self.merge_to_hash(partial_results)
+      puts "Merging..."
       probabilities = Hash.new(0.0)
       partial_results.each do |partial_result|
+        puts partial_result
         probabilities[partial_result.agendas_stolen] += partial_result.probability
       end
       probabilities
@@ -80,7 +83,7 @@ module NetrunnerProbabilityUtils
   end
 
   class Breach
-    def access(deck_state)
+    def access(deck_state, _clicks)
       was_agenda_stolen_probability = deck_state.agendas_left.to_f / deck_state.cards_left
 
       puts 'Was agenda stolen: %0.2f%%' % (was_agenda_stolen_probability * 100)
@@ -91,27 +94,39 @@ module NetrunnerProbabilityUtils
       ]
     end
 
-    def self.apply_series_of_breaches_recursive(deck_state, breaches, agendas_stolen = 0, probability = 1)
+    def self.apply_breaches(deck_state, breaches, clicks = 4)
+      partial_probabilities = self.apply_breaches_recursive(deck_state, breaches, clicks)
+
+      PartialResult.merge_to_hash(partial_probabilities)
+    end
+
+    def self.apply_breaches_recursive(deck_state, breaches, clicks, agendas_stolen = 0, probability = 1)
       if breaches.empty?
         return PartialResult.new(agendas_stolen, probability)
       end
 
-      breach = breaches.shift
+      breach = breaches[0]
 
-      breach_result = breach.access(deck_state)
+      breach_result = breach.access(deck_state, clicks)
 
-      puts "Breach result: #{breach_result}"
+      # puts "Breach result: #{breach_result}"
 
       breach_probabilities = breach_result.flat_map do |partial_result|
+        puts "#{breach.class.name} case #{partial_result.agendas_stolen}"
+
         new_deck_state = deck_state.steal(partial_result.agendas_stolen)
 
-        puts "If #{partial_result.agendas_stolen} agendas are stolen, the new state is: #{new_deck_state}"
+        clicks_spent = partial_result.clicks_spent
 
-        self.apply_series_of_breaches_recursive(
+        # puts "If #{partial_result.agendas_stolen} agendas are stolen,"\
+        # " the new state is: #{new_deck_state}"
+
+        self.apply_breaches_recursive(
           new_deck_state,
-          breaches,
+          breaches.drop(1),
+          clicks - clicks_spent,
           agendas_stolen + partial_result.agendas_stolen,
-          probability * partial_result.probability
+          probability * partial_result.probability,
         )
       end
 
@@ -126,9 +141,10 @@ module NetrunnerProbabilityUtils
       @khusyuk_number = khusyuk_number
     end
 
-    def access(deck_state)
-      if deck_state.agendas_left == 0
-        return [PartialResult.new(0, 1.0)] # no agendas left, there's only one possible outcome, with 100% probability.
+    def access(deck_state, clicks)
+      puts "Performing Khusyuk access"
+      if deck_state.agendas_left == 0 or clicks == 0
+        return [PartialResult.new(0, 1.0)] # no agendas or clicks left, there's only one possible outcome
       end
 
       range_upper_limit = [deck_state.agendas_left, 1].min
@@ -147,14 +163,15 @@ module NetrunnerProbabilityUtils
   end
 
   class DeepDiveBreach
-    def access(deck_state)
-      if deck_state.agendas_left == 0
-        return [PartialResult.new(0, 1.0)] # no agendas left, there's only one possible outcome, with 100% probability.
+    def access(deck_state, clicks)
+      puts "Performing Deep Dive access"
+      if deck_state.agendas_left == 0 or clicks == 0
+        return [PartialResult.new(0, 1.0)] # no agendas or clicks left, there's only one possible outcome
       end
 
-      # TODO can't implement max properly
-      max = 2
-      range_upper_limit = [deck_state.agendas_left, max].min
+      # a Deep Dive can steal up to 2 agendas, but only if we have enough clicks and agendas in the deck
+      range_upper_limit = [deck_state.agendas_left, clicks, 2].min
+
       (0..range_upper_limit).map do |agendas_stolen|
         PartialResult.new(
           agendas_stolen,
@@ -163,7 +180,8 @@ module NetrunnerProbabilityUtils
             1 - hypg_cdf(agendas_stolen - 1, deck_state.agendas_left, 8, deck_state.cards_left)
           else
             hypg_pdf(agendas_stolen, deck_state.agendas_left, 8, deck_state.cards_left)
-          end
+          end,
+          [agendas_stolen, 1].max, # we spent at least one click, two if we stole 2 agendas
         )
       end
     end

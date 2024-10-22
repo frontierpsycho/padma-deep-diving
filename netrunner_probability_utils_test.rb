@@ -64,43 +64,78 @@ module NetrunnerProbabilityUtilsTest
       # result = RoundResult.new(o)
     end
 
-    def test_apply_series_of_breaches
-      breach_probabilities = Breach.apply_series_of_breaches_recursive(
+    def test_apply_breaches
+      breach_probabilities = Breach.apply_breaches(
         DeckState.new(24, 4),
         [Breach.new, Breach.new]
       )
 
-      final_probabilities = PartialResult.merge_to_hash(breach_probabilities)
-
-      assert_in_delta(final_probabilities[0], 0.69, 0.01)
-      assert_in_delta(final_probabilities[1], 0.31, 0.01)
+      assert_in_delta(breach_probabilities[0], 0.69, 0.01)
+      assert_in_delta(breach_probabilities[1], 0.31, 0.01)
     end
 
-    def test_apply_series_of_breaches_single_khusyuk
-      breach_probabilities = Breach.apply_series_of_breaches_recursive(
+    def test_apply_breaches_single_khusyuk
+      breach_probabilities = Breach.apply_breaches(
         DeckState.new(24, 4),
         [KhusyukBreach.new(4)]
       )
 
-      final_probabilities = PartialResult.merge_to_hash(breach_probabilities)
-
-      assert_in_delta(final_probabilities[0], 0.455, 0.01)
-      assert_in_delta(final_probabilities[1], 0.544, 0.01)
+      assert_in_delta(breach_probabilities[0], 0.455, 0.01)
+      assert_in_delta(breach_probabilities[1], 0.544, 0.01)
+      assert_in_delta(breach_probabilities.values.reduce(:+), 1.00, 0.001)
     end
 
-    def test_apply_series_of_breaches_super_round
-      breach_probabilities = Breach.apply_series_of_breaches_recursive(
+    def test_apply_breaches_deep_dive
+      breach_probabilities = Breach.apply_breaches(
         DeckState.new(24, 4),
+        [DeepDiveBreach.new],
+        2,
+      )
+
+      assert_in_delta(breach_probabilities[0], 0.171, 0.001)
+      assert_in_delta(breach_probabilities[1], 0.421, 0.001)
+      assert_in_delta(breach_probabilities[2], 0.407, 0.001)
+      assert_in_delta(breach_probabilities.values.reduce(:+), 1.00, 0.001)
+    end
+
+    def test_apply_breaches_super_round
+      super_round =
         [
           KhusyukBreach.new(4),
           DeepDiveBreach.new,
+          DeepDiveBreach.new,
         ]
+
+      breach_probabilities = Breach.apply_breaches(
+        DeckState.new(24, 4),
+        super_round,
+        4 # we have 4 clicks available (1 for Khusyuk and 3 for the Deep Dives)
       )
 
-      final_probabilities = PartialResult.merge_to_hash(breach_probabilities)
+      assert_in_delta(breach_probabilities[0], 0.01337, 0.03)
+      assert_in_delta(breach_probabilities[1], 0.11823, 0.03)
+      assert_in_delta(breach_probabilities[2], 0.36552, 0.03)
+      assert_in_delta(breach_probabilities[3], 0.39487, 0.03)
+      assert_in_delta(breach_probabilities[4], 0.08699, 0.03)
 
-      assert_in_delta(final_probabilities[0], 0.455, 0.01)
-      assert_in_delta(final_probabilities[1], 0.544, 0.01)
+      # test edge case with 1 agenda
+      breach_probabilities = Breach.apply_breaches(
+        DeckState.new(24, 1),
+        super_round,
+        4 # we have 4 clicks available (1 for Khusyuk and 3 for the Deep Dives)
+      )
+
+      assert_in_delta(breach_probabilities[0], 0.37037, 0.01)
+      assert_in_delta(breach_probabilities[1], 0.62963, 0.01)
+
+      # test edge case with no agendas
+      breach_probabilities = Breach.apply_breaches(
+        DeckState.new(24, 0),
+        super_round,
+        4 # we have 4 clicks available (1 for Khusyuk and 3 for the Deep Dives)
+      )
+
+      assert_in_delta(breach_probabilities[0], 1.0, 0.01)
     end
   end
 end
