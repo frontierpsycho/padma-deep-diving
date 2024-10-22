@@ -9,3 +9,8 @@ Here's some graphs:
 ![Probability to steal at least 2 agendas depending on deck size](./at_least_2.png)
 
 ![Probability to steal at least 3 agendas depending on deck size](./at_least_3.png)
+
+# TODO
+
+- [ ] Use logger provided from the outside (or at least configurable from the outside)
+- [ ] Add more cards
