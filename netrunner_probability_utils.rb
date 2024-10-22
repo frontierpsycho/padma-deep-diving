@@ -35,29 +35,6 @@ module NetrunnerProbabilityUtils
     end
   end
 
-  class RoundResult
-    attr_reader :probabilities
-
-    def initialize(outc)
-      @probabilities = outc.each_with_object(Hash.new(0.0)) do |outcome, acc|
-        acc[outcome[0]] += outcome[1]
-        acc
-      end
-    end
-
-    # probability by agendas
-    def pba(number_of_agendas)
-      @probabilities[number_of_agendas]
-    end
-
-    def print
-      @probabilities.each do |agendas_stolen, total_probability|
-        puts format("Chance to steal %d agendas:\t\t%0.2f%%", agendas_stolen, total_probability * 100.0)
-      end
-      puts format('Total probability: %0.2f', @probabilities.values.reduce(:+) * 100)
-    end
-  end
-
   class PartialResult
     attr_reader :agendas_stolen, :probability, :clicks_spent
 
@@ -183,87 +160,6 @@ module NetrunnerProbabilityUtils
           end,
           [agendas_stolen, 1].max, # we spent at least one click, two if we stole 2 agendas
         )
-      end
-    end
-  end
-
-  def self.khusyuk_outcomes(deck_state, cards)
-    if deck_state.agendas_left == 0
-      return [[0, 1.0]] # no agendas left, there's only one possible outcome, with 100% probability.
-    end
-
-    range_upper_limit = [deck_state.agendas_left, 1].min
-    (0..range_upper_limit).map do |agendas_stolen|
-      [
-        agendas_stolen,
-        # for the last entry, we want the probability to have agendas_stolen or more hits
-        if agendas_stolen == range_upper_limit
-          1 - hypg_cdf(agendas_stolen - 1, deck_state.agendas_left, cards, deck_state.cards_left)
-        else
-          hypg_pdf(agendas_stolen, deck_state.agendas_left, cards, deck_state.cards_left)
-        end
-      ]
-    end
-  end
-
-  # use max to limit based on clicks
-  def self.deep_dive_outcomes(deck_state, max = 2)
-    if deck_state.agendas_left == 0
-      return [[0, 1.0]] # no agendas left, there's only one possible outcome, with 100% probability.
-    end
-
-    range_upper_limit = [deck_state.agendas_left, max].min
-    (0..range_upper_limit).map do |agendas_stolen|
-      [
-        agendas_stolen,
-        # for the last entry, we want the probability to have agendas_stolen or more hits
-        if agendas_stolen == range_upper_limit
-          1 - hypg_cdf(agendas_stolen - 1, deck_state.agendas_left, 8, deck_state.cards_left)
-        else
-          hypg_pdf(agendas_stolen, deck_state.agendas_left, 8, deck_state.cards_left)
-        end
-      ]
-    end
-  end
-
-  def self.super_round_outcomes(deck_state, khusyuk_cards = 4)
-    # puts "Khusyuk run (#{deck_state})"
-
-    # Khusyuk followed by one or two Deep Dives.
-    NetrunnerProbabilityUtils.khusyuk_outcomes(deck_state, khusyuk_cards).flat_map do |khusyuk_tuple|
-      k_agendas_stolen, k_probability = khusyuk_tuple
-      deck_state_after_khusyuk = deck_state.steal(k_agendas_stolen)
-
-      # puts "\tStole %d (P: %0.2f%%)" % [k_agendas_stolen, k_probability*100]
-
-      # puts "\t1st Deep Dive (#{deck_state_after_khusyuk})"
-
-      NetrunnerProbabilityUtils.deep_dive_outcomes(deck_state_after_khusyuk)
-                               .map { |first_dd_tuple| [first_dd_tuple[0], first_dd_tuple[1] * k_probability] }
-                               .flat_map do |first_dd_tuple|
-        fdd_agendas_stolen, fdd_probability = first_dd_tuple
-        deck_state_after_fdd = deck_state_after_khusyuk.steal(fdd_agendas_stolen)
-
-        # puts "\t\tStole %d (P: %0.2f%%)" % [fdd_agendas_stolen, fdd_probability*100]
-
-        # puts "\t\t2nd Deep Dive (#{deck_state_after_fdd})"
-
-        # if the first DD stole 2 agendas, we only have one click left. The second one can steal max 1.
-        max = if fdd_agendas_stolen == 2
-                1
-              else
-                2
-              end
-
-        NetrunnerProbabilityUtils.deep_dive_outcomes(deck_state_after_fdd, max)
-                                 .map { |second_dd_tuple| [second_dd_tuple[0], second_dd_tuple[1] * fdd_probability] }
-                                 .map do |second_dd_tuple|
-          sdd_agendas_stolen, sdd_probability = second_dd_tuple
-          deck_state_after_sdd = deck_state_after_fdd.steal(sdd_agendas_stolen)
-          # puts "\t\t\tStole %d (P: %0.2f%%) - total: %d" % [sdd_agendas_stolen, sdd_probability*100, deck_state.agendas_left - deck_state_after_sdd.agendas_left]
-
-          [deck_state.agendas_left - deck_state_after_sdd.agendas_left, sdd_probability]
-        end
       end
     end
   end
